@@ -1,0 +1,29 @@
+# Windows
+Thumbs.db
+Desktop.ini
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Flutter / Dart
+**/.dart_tool/
+**/.packages
+**/build/
+**/pubspec.lock
+
+# Android
+**/android/.gradle/
+**/android/local.properties
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.bak
+~$*
