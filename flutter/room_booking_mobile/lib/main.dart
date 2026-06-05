@@ -3,8 +3,30 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
-const String apiBaseUrl = 'http://IP-Adress/room_booking/hs/api';
+const String defaultApiBaseUrl = 'http://192.168.0.176/room_booking/hs/api';
+
+class ServerConfig {
+  static const String _apiBaseUrlKey = 'api_base_url';
+
+  static Future<String> getApiBaseUrl() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_apiBaseUrlKey) ?? defaultApiBaseUrl;
+  }
+
+  static Future<void> saveApiBaseUrl(String value) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    var url = value.trim();
+
+    if (url.endsWith('/')) {
+      url = url.substring(0, url.length - 1);
+    }
+
+    await prefs.setString(_apiBaseUrlKey, url);
+  }
+}
 
 const String apiUser = 'dev';
 const String apiPassword = '123';
@@ -109,6 +131,190 @@ class BookingInfo {
   final String source;
 }
 
+class ServerSettingsPage extends StatefulWidget {
+  const ServerSettingsPage({super.key});
+
+  @override
+  State<ServerSettingsPage> createState() => _ServerSettingsPageState();
+}
+
+class _ServerSettingsPageState extends State<ServerSettingsPage> {
+  final TextEditingController urlController = TextEditingController();
+
+  bool isLoading = true;
+  String messageText = '';
+
+  @override
+  void initState() {
+    super.initState();
+    loadSavedUrl();
+  }
+
+  Future<void> loadSavedUrl() async {
+    final savedUrl = await ServerConfig.getApiBaseUrl();
+
+    if (!mounted) return;
+
+    setState(() {
+      urlController.text = savedUrl;
+      isLoading = false;
+    });
+  }
+
+  Future<void> saveUrl() async {
+    final url = urlController.text.trim();
+
+    if (url.isEmpty) {
+      setState(() {
+        messageText = 'Введите адрес сервера';
+      });
+      return;
+    }
+
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      setState(() {
+        messageText = 'Адрес должен начинаться с http:// или https://';
+      });
+      return;
+    }
+
+    await ServerConfig.saveApiBaseUrl(url);
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Адрес сервера сохранён'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
+    Navigator.of(context).pop(true);
+  }
+
+  @override
+  void dispose() {
+    urlController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (isLoading) {
+      return const Scaffold(
+        backgroundColor: Color(0xFFF6F3FF),
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF6F3FF),
+      appBar: AppBar(title: const Text('Настройки сервера')),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(22),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Icon(
+                Icons.settings_ethernet_outlined,
+                size: 70,
+                color: Color(0xFF4B2DBB),
+              ),
+
+              const SizedBox(height: 18),
+
+              const Text(
+                'Адрес сервера 1С',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF231A3D),
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              const Text(
+                'Укажите адрес опубликованного HTTP-сервиса 1С. Например: http://192.168.0.176/room_booking/hs/api',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Color(0xFF6B6387),
+                  fontSize: 15,
+                  height: 1.4,
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(26),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextField(
+                      controller: urlController,
+                      keyboardType: TextInputType.url,
+                      decoration: InputDecoration(
+                        labelText: 'Адрес API',
+                        hintText: 'http://192.168.0.176/room_booking/hs/api',
+                        prefixIcon: const Icon(Icons.link_outlined),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 18),
+
+                    ElevatedButton.icon(
+                      onPressed: saveUrl,
+                      icon: const Icon(Icons.save_outlined),
+                      label: const Text('Сохранить'),
+                    ),
+                  ],
+                ),
+              ),
+
+              if (messageText.isNotEmpty) ...[
+                const SizedBox(height: 18),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF3EEFF),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    messageText,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Color(0xFF4A3F75),
+                      fontWeight: FontWeight.w600,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -124,7 +330,41 @@ class _LoginPageState extends State<LoginPage> {
   bool obscurePassword = true;
   String messageText = '';
 
+  String apiBaseUrl = defaultApiBaseUrl;
+
   String get loginUrl => '$apiBaseUrl/auth/login';
+
+  @override
+  void initState() {
+    super.initState();
+    loadApiBaseUrl();
+  }
+
+  Future<void> loadApiBaseUrl() async {
+    final savedUrl = await ServerConfig.getApiBaseUrl();
+
+    if (!mounted) return;
+
+    setState(() {
+      apiBaseUrl = savedUrl;
+    });
+  }
+
+  Future<void> openServerSettings() async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (context) => const ServerSettingsPage()),
+    );
+
+    if (changed == true) {
+      await loadApiBaseUrl();
+
+      if (!mounted) return;
+
+      setState(() {
+        messageText = 'Адрес сервера обновлён';
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -291,6 +531,13 @@ class _LoginPageState extends State<LoginPage> {
                               )
                             : const Text('Войти'),
                       ),
+                      const SizedBox(height: 10),
+
+                      OutlinedButton.icon(
+                        onPressed: isLoading ? null : openServerSettings,
+                        icon: const Icon(Icons.settings_outlined),
+                        label: const Text('Настройки сервера'),
+                      ),
                     ],
                   ),
                 ),
@@ -342,12 +589,13 @@ class _RoomsListPageState extends State<RoomsListPage> {
   List<RoomInfo> rooms = [];
   bool isLoading = true;
   String errorText = '';
+  String apiBaseUrl = defaultApiBaseUrl;
 
   @override
   void initState() {
     super.initState();
 
-    loadRoomsWithStatuses();
+    initPage();
 
     refreshTimer = Timer.periodic(
       const Duration(seconds: 5),
@@ -357,6 +605,14 @@ class _RoomsListPageState extends State<RoomsListPage> {
     searchController.addListener(() {
       setState(() {});
     });
+  }
+
+  Future<void> initPage() async {
+    apiBaseUrl = await ServerConfig.getApiBaseUrl();
+
+    if (!mounted) return;
+
+    await loadRoomsWithStatuses();
   }
 
   @override
@@ -761,6 +1017,8 @@ class RoomDetailsPage extends StatefulWidget {
   final String apiBaseUrl;
   final AppUser user;
 
+  
+
   @override
   State<RoomDetailsPage> createState() => _RoomDetailsPageState();
 }
@@ -800,6 +1058,8 @@ class _RoomDetailsPageState extends State<RoomDetailsPage> {
     'неисправно оборудование',
     'прочее',
   ];
+
+  
 
   String selectedClosedReason = 'ремонт';
 
